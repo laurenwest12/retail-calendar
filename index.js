@@ -2,6 +2,11 @@ const e = require('express');
 const express = require('express');
 const app = express();
 const sql = require('msnodesqlv8');
+const Bottleneck = require('bottleneck');
+
+const limiter = new Bottleneck({
+	minTime: 300,
+});
 
 const { server, database, driver } = require('./config');
 const connectionString = `server=${server};Database=${database};Trusted_Connection=Yes;Driver=${driver}`;
@@ -87,7 +92,6 @@ const getCalendar = (day) => {
 
 const getWeek = (calendar, day) => {
 	let months = [
-		'Jan',
 		'Feb',
 		'Mar',
 		'Apr',
@@ -99,6 +103,7 @@ const getWeek = (calendar, day) => {
 		'Oct',
 		'Nov',
 		'Dec',
+		'Jan',
 	];
 
 	for (let i = 0; i < calendar.weeks.length; ++i) {
@@ -113,30 +118,29 @@ const getWeek = (calendar, day) => {
 			return {
 				date: formatDate(day),
 				year: calendar.year,
-				month: months[week.monthOfYear],
-				week: week.weekOfMonth + 1,
+				month: !months[week.monthOfYear - 1]
+					? 'Jan'
+					: months[week.monthOfYear - 1],
+				week: !week.weekOfMonth + 1 ? 5 : week.weekOfMonth + 1,
 			};
 		}
 	}
 };
 
-const getValues = (obj) => {
-	let values = `'${obj.date}','${obj.year}','${obj.month}','${obj.week}'`;
-};
-
-const submitQuery = async (obj) => {
-	const query = `INSERT INTO RetailCalendar VALUES ('${obj.date}','${obj.year}','${obj.month}','${obj.week}')`;
-	await sql.query(connectionString, query, (err) => {
-		console.log(err);
-	});
-};
-
-app.listen(5000, () => {
+app.listen(5000, async () => {
 	console.log('App is running');
-	const dates = getDates(new Date('2010-01-01'), new Date('2099-12-31'));
-	dates.map(async (date) => {
+	const dates = getDates(new Date('2015-01-01'), new Date('2050-12-31'));
+	for (i in dates) {
+		const date = dates[i];
 		const calendar = getCalendar(date);
 		const week = getWeek(calendar, date);
-		await submitQuery(week);
-	});
+
+		await limiter.schedule(async () => {
+			const query = `INSERT INTO RetailCalendar VALUES ('${week.date}','${week.year}','${week.month}','${week.week}')`;
+			await sql.query(connectionString, query, (err, row) => {
+				if (err) console.log(err);
+			});
+		});
+	}
+	console.log('Finished importing');
 });

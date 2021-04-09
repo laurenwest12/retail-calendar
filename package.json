@@ -9,6 +9,7 @@
 	"author": "",
 	"license": "ISC",
 	"dependencies": {
+		"bottleneck": "^2.19.5",
 		"calendar": "^0.1.1",
 		"express": "^4.17.1",
 		"msnodesqlv8": "^2.0.13",
