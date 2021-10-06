@@ -39,6 +39,21 @@ const formatDate = (date) => {
 };
 
 const getRetailCalendarWeeks = (arr) => {
+	const monthNames = [
+		'Feb',
+		'Mar',
+		'Apr',
+		'May',
+		'Jun',
+		'Jul',
+		'Aug',
+		'Sep',
+		'Oct',
+		'Nov',
+		'Dec',
+		'Jan',
+	];
+	let calendars = [];
 	for (let i = 0; i < arr.length; ++i) {
 		let retailCalendar = [];
 		let { start, year, weeks } = arr[i];
@@ -62,6 +77,7 @@ const getRetailCalendarWeeks = (arr) => {
 					start,
 					end,
 					year,
+					month: monthNames[i],
 					currentRetailWeek,
 					currentWeekOfMonth: j,
 					currentMonthOfYear: i + 1,
@@ -72,36 +88,58 @@ const getRetailCalendarWeeks = (arr) => {
 			}
 		}
 
-		return retailCalendar;
+		calendars.push(retailCalendar);
 	}
+	return calendars;
 };
 
 const getRetailCalendarDates = (calendar) => {
 	let dates = [];
-	for (let i = 0; i < calendar.length; ++i) {
-		const week = calendar[i];
-		for (let i = 0; i < 7; ++i) {
-			const {
-				start,
-				end,
-				year,
-				currentRetailWeek,
-				currentWeekOfMonth,
-				currentMonthOfYear,
-			} = week;
-			const date = formatDate(new Date(start).addDays(i + 1));
-			dates.push({
-				date,
-				start,
-				end,
-				year,
-				currentRetailWeek,
-				currentWeekOfMonth,
-				currentMonthOfYear,
-			});
+	for (let j = 0; j < calendar.length; ++j) {
+		let currentDates = [];
+		let currentCalendar = calendar[j];
+
+		for (let i = 0; i < currentCalendar.length; ++i) {
+			const week = currentCalendar[i];
+			for (let i = 0; i < 7; ++i) {
+				const {
+					start,
+					end,
+					year,
+					month,
+					currentRetailWeek,
+					currentWeekOfMonth,
+					currentMonthOfYear,
+				} = week;
+				const date = formatDate(new Date(start).addDays(i + 1));
+
+				currentDates.push({
+					date,
+					start,
+					end,
+					year,
+					month,
+					currentRetailWeek,
+					currentWeekOfMonth,
+					currentMonthOfYear,
+				});
+			}
 		}
+		dates.push(currentDates);
 	}
-	return dates;
+	return dates.flat();
+};
+
+const submitQuery = (query) => {
+	return new Promise(async (resolve) => {
+		try {
+			await sql.query(connectionString, query, (err, rows) => {
+				err ? resolve(`Error: ${err.message}`) : resolve('Complete');
+			});
+		} catch (err) {
+			resolve(`Err: ${err}`);
+		}
+	});
 };
 
 app.listen(5000, async () => {
@@ -117,7 +155,6 @@ app.listen(5000, async () => {
 			year: '2021',
 			weeks: 52,
 		},
-		,
 		{
 			start: '2022-01-30',
 			year: '2022',
@@ -137,6 +174,33 @@ app.listen(5000, async () => {
 
 	const retailCalendarWeeks = getRetailCalendarWeeks(dates);
 	const retailCalendarDates = getRetailCalendarDates(retailCalendarWeeks);
+
+	let errors = [];
+
+	for (let i = 0; i < retailCalendarDates.length; ++i) {
+		const row = retailCalendarDates[i];
+		const {
+			date,
+			start,
+			end,
+			year,
+			month,
+			currentRetailWeek,
+			currentWeekOfMonth,
+			currentMonthOfYear,
+		} = row;
+
+		const query = `INSERT INTO RetailCalendarNew ("Date","Start","End","Year","Month","RetailWeek","WeekOfMonth","MonthOfYear") 
+		VALUES ('${date}','${start}','${end}','${year}','${month}','${currentRetailWeek}','${currentWeekOfMonth}','${currentMonthOfYear}')`;
+
+		const res = await submitQuery(query);
+
+		if (res.indexOf('Error') !== -1) {
+			errors.push(res);
+		}
+	}
+
+	console.log(errors);
 
 	console.log('Finished importing');
 });
