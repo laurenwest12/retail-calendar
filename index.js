@@ -16,6 +16,16 @@ Date.prototype.addDays = function (days) {
 	return date;
 };
 
+Date.prototype.getWeekNumber = function () {
+	var d = new Date(
+		Date.UTC(this.getFullYear(), this.getMonth(), this.getDate())
+	);
+	var dayNum = d.getUTCDay() || 7;
+	d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+	var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+	return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+};
+
 const formatDate = (date) => {
 	let d = new Date(date),
 		month = '' + (d.getMonth() + 1),
@@ -28,55 +38,105 @@ const formatDate = (date) => {
 	return [year, month, day].join('-');
 };
 
-const getRetailCalendar = (arr) => {
+const getRetailCalendarWeeks = (arr) => {
 	for (let i = 0; i < arr.length; ++i) {
 		let retailCalendar = [];
 		let { start, year, weeks } = arr[i];
+		let months;
+
+		if (weeks === 52) {
+			months = [4, 5, 4, 4, 5, 4, 4, 5, 4, 4, 5, 4];
+		} else {
+			months = [4, 5, 4, 4, 5, 4, 4, 5, 4, 4, 5, 5];
+		}
 
 		let currentRetailWeek = 1;
-		let currentRetailMonth = 1;
-		let currentMonthNumber = 4;
 
-		for (let i = 1; i <= weeks; ++i) {
-			let end = formatDate(new Date(start).addDays(7));
+		for (let i = 0; i < months.length; ++i) {
+			let endWeek = months[i];
 
-			retailCalendar.push({
+			for (let j = 1; j <= endWeek; ++j) {
+				let end = formatDate(new Date(start).addDays(7));
+
+				retailCalendar.push({
+					start,
+					end,
+					year,
+					currentRetailWeek,
+					currentWeekOfMonth: j,
+					currentMonthOfYear: i + 1,
+				});
+
+				start = formatDate(new Date(end).addDays(2));
+				currentRetailWeek++;
+			}
+		}
+
+		return retailCalendar;
+	}
+};
+
+const getRetailCalendarDates = (calendar) => {
+	let dates = [];
+	for (let i = 0; i < calendar.length; ++i) {
+		const week = calendar[i];
+		for (let i = 0; i < 7; ++i) {
+			const {
 				start,
 				end,
 				year,
 				currentRetailWeek,
+				currentWeekOfMonth,
+				currentMonthOfYear,
+			} = week;
+			const date = formatDate(new Date(start).addDays(i + 1));
+			dates.push({
+				date,
+				start,
+				end,
+				year,
+				currentRetailWeek,
+				currentWeekOfMonth,
+				currentMonthOfYear,
 			});
-
-			start = formatDate(new Date(end).addDays(2));
-			currentRetailWeek += 1;
 		}
-
-		console.log(retailCalendar);
 	}
+	return dates;
 };
 
 app.listen(5000, async () => {
 	console.log('App is running');
 	const dates = [
 		{
+			start: '2020-02-02',
+			year: '2020',
+			weeks: 52,
+		},
+		{
 			start: '2021-01-31',
 			year: '2021',
 			weeks: 52,
 		},
-		// ,
-		// {
-		// 	start: '2022-01-30',
-		// 	year: '2022',
-		// 	weeks: 52,
-		// },
-		// {
-		// 	start: '2023-01-29',
-		// 	year: '2023',
-		// 	weeks: 53,
-		// },
+		,
+		{
+			start: '2022-01-30',
+			year: '2022',
+			weeks: 52,
+		},
+		{
+			start: '2023-01-29',
+			year: '2023',
+			weeks: 53,
+		},
+		{
+			start: '2024-02-04',
+			year: '2024',
+			weeks: 52,
+		},
 	];
 
-	getRetailCalendar(dates);
+	const retailCalendarWeeks = getRetailCalendarWeeks(dates);
+	const retailCalendarDates = getRetailCalendarDates(retailCalendarWeeks);
 
 	console.log('Finished importing');
 });
