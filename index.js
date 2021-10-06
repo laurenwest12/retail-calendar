@@ -1,4 +1,3 @@
-const e = require('express');
 const express = require('express');
 const app = express();
 const sql = require('msnodesqlv8');
@@ -11,28 +10,10 @@ const limiter = new Bottleneck({
 const { server, database, driver } = require('./config');
 const connectionString = `server=${server};Database=${database};Trusted_Connection=Yes;Driver=${driver}`;
 
-const {
-	WeekCalculation,
-	WeekGrouping,
-	LastDayOfWeek,
-	LastMonthOfYear,
-	RetailCalendarFactory,
-} = require('retail-calendar');
-
 Date.prototype.addDays = function (days) {
 	var date = new Date(this.valueOf());
 	date.setDate(date.getDate() + days);
 	return date;
-};
-
-const getDates = (startDate, stopDate) => {
-	const dateArray = new Array();
-	let currentDate = startDate;
-	while (currentDate <= stopDate) {
-		dateArray.push(new Date(currentDate));
-		currentDate = currentDate.addDays(1);
-	}
-	return dateArray;
 };
 
 const formatDate = (date) => {
@@ -47,100 +28,55 @@ const formatDate = (date) => {
 	return [year, month, day].join('-');
 };
 
-const changeCalendar = (calendar, day) => {
-	if (day < calendar.firstDayOfYear) {
-		calendar = new RetailCalendarFactory(
-			{
-				weekCalculation: WeekCalculation.LastDayNearestEOM,
-				weekGrouping: WeekGrouping.Group454,
-				lastDayOfWeek: LastDayOfWeek.Saturday,
-				lastMonthOfYear: LastMonthOfYear.January,
-				restated: false,
-			},
-			day.getFullYear() - 1
-		);
-	}
-};
+const getRetailCalendar = (arr) => {
+	for (let i = 0; i < arr.length; ++i) {
+		let retailCalendar = [];
+		let { start, year, weeks } = arr[i];
 
-const getCalendar = (day) => {
-	let calendar = new RetailCalendarFactory(
-		{
-			weekCalculation: WeekCalculation.LastDayNearestEOM,
-			weekGrouping: WeekGrouping.Group454,
-			lastDayOfWeek: LastDayOfWeek.Saturday,
-			lastMonthOfYear: LastMonthOfYear.January,
-			restated: false,
-		},
-		day.getFullYear()
-	);
+		let currentRetailWeek = 1;
+		let currentRetailMonth = 1;
+		let currentMonthNumber = 4;
 
-	if (day < calendar.firstDayOfYear) {
-		calendar = new RetailCalendarFactory(
-			{
-				weekCalculation: WeekCalculation.LastDayNearestEOM,
-				weekGrouping: WeekGrouping.Group454,
-				lastDayOfWeek: LastDayOfWeek.Saturday,
-				lastMonthOfYear: LastMonthOfYear.January,
-				restated: false,
-			},
-			day.getFullYear() - 1
-		);
-	}
+		for (let i = 1; i <= weeks; ++i) {
+			let end = formatDate(new Date(start).addDays(7));
 
-	return calendar;
-};
+			retailCalendar.push({
+				start,
+				end,
+				year,
+				currentRetailWeek,
+			});
 
-const getWeek = (calendar, day) => {
-	let months = [
-		'Feb',
-		'Mar',
-		'Apr',
-		'May',
-		'Jun',
-		'Jul',
-		'Aug',
-		'Sep',
-		'Oct',
-		'Nov',
-		'Dec',
-		'Jan',
-	];
-
-	for (let i = 0; i < calendar.weeks.length; ++i) {
-		const week = calendar.weeks[i];
-		const start = week.gregorianStartDate;
-		const end = week.gregorianEndDate;
-		if (day > end) {
-			continue;
-		} else if (day < start) {
-			break;
-		} else {
-			return {
-				date: formatDate(day),
-				year: calendar.year,
-				month: !months[week.monthOfYear - 1]
-					? 'Jan'
-					: months[week.monthOfYear - 1],
-				week: !week.weekOfMonth + 1 ? 5 : week.weekOfMonth + 1,
-			};
+			start = formatDate(new Date(end).addDays(2));
+			currentRetailWeek += 1;
 		}
+
+		console.log(retailCalendar);
 	}
 };
 
 app.listen(5000, async () => {
 	console.log('App is running');
-	const dates = getDates(new Date('2015-01-01'), new Date('2050-12-31'));
-	for (i in dates) {
-		const date = dates[i];
-		const calendar = getCalendar(date);
-		const week = getWeek(calendar, date);
+	const dates = [
+		{
+			start: '2021-01-31',
+			year: '2021',
+			weeks: 52,
+		},
+		// ,
+		// {
+		// 	start: '2022-01-30',
+		// 	year: '2022',
+		// 	weeks: 52,
+		// },
+		// {
+		// 	start: '2023-01-29',
+		// 	year: '2023',
+		// 	weeks: 53,
+		// },
+	];
 
-		await limiter.schedule(async () => {
-			const query = `INSERT INTO RetailCalendar VALUES ('${week.date}','${week.year}','${week.month}','${week.week}')`;
-			await sql.query(connectionString, query, (err, row) => {
-				if (err) console.log(err);
-			});
-		});
-	}
+	getRetailCalendar(dates);
+
 	console.log('Finished importing');
 });
